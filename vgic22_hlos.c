@@ -39,6 +39,11 @@ static unsigned int n = 8; /* oryon SW LR count */
 module_param(n, uint, 0644);
 static unsigned int target_cpu = 0;
 module_param(target_cpu, uint, 0644);
+/* mode: 0=full (IROUTER+prio+CTLR+ICC+pends)  1=read-only baseline
+ *       2=IROUTER writes only  3=CTLR+ICC+pends (no IROUTER/prio)
+ *       4=pends only (ISENABLER/ISPENDR) */
+static unsigned int mode = 0;
+module_param(mode, uint, 0644);
 
 #define GICD_CTLR	0x0000
 #define GICD_IIDR	0x0008
@@ -69,23 +74,40 @@ static int __init vgic22_init(void)
 	}
 
 	iidr = readl(gicd + GICD_IIDR);
-	pr_info("vgic22: GICD @ %#lx IIDR=%#x CTLR=%#x\n", gicd_base, iidr,
-		readl(gicd + GICD_CTLR));
+	pr_info("vgic22: GICD @ %#lx IIDR=%#x CTLR=%#x mode=%u\n", gicd_base, iidr,
+		readl(gicd + GICD_CTLR), mode);
+	if (mode == 1) {
+		pr_info("vgic22: mode1 read-only, done\n");
+		iounmap(gicd);
+		return 0;
+	}
 
 	/* route spi_first..spi_first+n to CPU0 */
-	for (i = 0; i <= n; i++)
-		writeq(0, gicd + GICD_IROUTER + (spi_first + i) * 8);
+	if (mode == 0 || mode == 2) {
+		for (i = 0; i <= n; i++)
+			writeq(0, gicd + GICD_IROUTER + (spi_first + i) * 8);
+	}
 
 	/* distinct priorities so the vGIC keeps LR order deterministic */
-	for (i = 0; i <= n; i++)
-		writeb(0x10 + i * 0x10,
-		       gicd + GICD_IPRIORITYR + spi_first + i);
+	if (mode == 0) {
+		for (i = 0; i <= n; i++)
+			writeb(0x10 + i * 0x10,
+			       gicd + GICD_IPRIORITYR + spi_first + i);
+	}
 
-	writel(0x3, gicd + GICD_CTLR); /* Group0 | Group1 */
-	asm volatile("msr ICC_PMR_EL1, %0" : : "r"(0xFFULL));
-	asm volatile("msr ICC_IGRPEN1_EL1, %0" : : "r"(1ULL));
-	asm volatile("msr ICC_IGRPEN0_EL1, %0" : : "r"(1ULL));
-	isb();
+	if (mode == 0 || mode == 3 || mode == 4) {
+		writel(0x3, gicd + GICD_CTLR); /* Group0 | Group1 */
+		asm volatile("msr ICC_PMR_EL1, %0" : : "r"(0xFFULL));
+		asm volatile("msr ICC_IGRPEN1_EL1, %0" : : "r"(1ULL));
+		asm volatile("msr ICC_IGRPEN0_EL1, %0" : : "r"(1ULL));
+		isb();
+	}
+
+	if (mode == 2) {
+		pr_info("vgic22: mode2 IROUTER-only done\n");
+		iounmap(gicd);
+		return 0;
+	}
 
 	for (i = 0; i < n; i++)
 		mask |= BIT(spi_first - 32 + i);
