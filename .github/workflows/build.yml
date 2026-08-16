@@ -47,13 +47,16 @@ jobs:
           mkdir -p "$OUT23"
           OUT17="$PWD/package/ko/gh_hvc17"
           mkdir -p "$OUT17"
+          OUT22="$PWD/package/ko/vgic22_hlos"
+          mkdir -p "$OUT22"
           docker run --rm \
             -v "$PWD:/src:ro" \
             -v "$OUT:/out_gh_hugepage_reserve" \
             -v "$OUT23:/out_gh_ipa23" \
             -v "$OUT17:/out_gh_hvc17" \
+            -v "$OUT22:/out_vgic22_hlos" \
             "ghcr.io/ylarod/ddk-min:${{ matrix.tag }}" \
-            sh /src/docker_exec.sh gh_hugepage_reserve.c:gh_hugepage_reserve gh_ipa23.c:gh_ipa23 gh_hvc17.c:gh_hvc17
+            sh /src/docker_exec.sh gh_hugepage_reserve.c:gh_hugepage_reserve gh_ipa23.c:gh_ipa23 gh_hvc17.c:gh_hvc17 vgic22_hlos.c:vgic22_hlos
 
       - name: Upload .ko artifact
         if: always()
@@ -77,6 +80,14 @@ jobs:
         with:
           name: ko17-${{ matrix.tag }}
           path: package/ko/gh_hvc17/${{ matrix.tag }}.ko
+          if-no-files-found: ignore
+
+      - name: Upload vgic22_hlos artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ko22-${{ matrix.tag }}
+          path: package/ko/vgic22_hlos/${{ matrix.tag }}.ko
           if-no-files-found: ignore
 
   package:
