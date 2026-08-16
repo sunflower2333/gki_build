@@ -13,6 +13,8 @@
 
 static unsigned long tx_cap = 0x585b34c8a8358d29UL;
 module_param(tx_cap, ulong, 0644);
+static unsigned long rx_cap = 0xd1ee35a8c8345b58UL;
+module_param(rx_cap, ulong, 0644);
 
 static u8 msg[56] __aligned(8);
 
@@ -78,9 +80,6 @@ static void do_recv(void)
 		rbuf[4], rbuf[5], rbuf[6], rbuf[7]);
 }
 
-static unsigned long rx_cap = 0xd1ee35a8c8345b58UL;
-module_param(rx_cap, ulong, 0644);
-
 static int __init gh_ipa23_init(void)
 {
 	/* candidate bases: try several; first tag success + overlap -> rollback */
@@ -98,7 +97,7 @@ static int __init gh_ipa23_init(void)
 	for (i = 0; i < ARRAY_SIZE(iobases); i++)
 		do_send(iobases[i]);
 	generic_c = 0;
-	pr_info("GHIPA23: sent %d messages, reading replies\n",
+	pr_info("GHIPA23: sent %zu messages, reading replies\n",
 		ARRAY_SIZE(bases) + ARRAY_SIZE(iobases));
 	for (i = 0; i < 12; i++)
 		do_recv();
