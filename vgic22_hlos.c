@@ -43,7 +43,8 @@ module_param(target_cpu, uint, 0644);
  *       2=IROUTER writes only  3=CTLR+ICC+pends (no IROUTER/prio)
  *       4=pends only (ISENABLER/ISPENDR, no CTLR/ICC)
  *       5=GICD_CTLR only  6=ICC_PMR only  7=ICC_IGRPEN1 only
- *       8=ICC_IGRPEN0 only  10=pend + stay IRQ-masked */
+ *       8=ICC_IGRPEN0 only  10=pend + stay IRQ-masked
+ *       11=ISENABLER only  12=ISPENDR only */
 static unsigned int mode = 0;
 module_param(mode, uint, 0644);
 
@@ -133,6 +134,24 @@ static int __init vgic22_init(void)
 	pr_info("vgic22: pend %u SPIs %u..%u (mask %#lx), IRQs masked\n",
 		n, spi_first, spi_first + n - 1, mask);
 	local_irq_disable();
+	if (mode == 11) {
+		/* enable only — no pending write */
+		writel(mask, gicd + GICD_ISENABLER1);
+		udelay(100);
+		pr_info("vgic22: mode11 enable-only done\n");
+		local_irq_enable();
+		iounmap(gicd);
+		return 0;
+	}
+	if (mode == 12) {
+		/* pending only — no enable write */
+		writel(mask, gicd + GICD_ISPENDR1);
+		udelay(100);
+		pr_info("vgic22: mode12 pend-only done\n");
+		local_irq_enable();
+		iounmap(gicd);
+		return 0;
+	}
 	writel(mask, gicd + GICD_ISENABLER1);
 	writel(mask, gicd + GICD_ISPENDR1);
 	udelay(100);
