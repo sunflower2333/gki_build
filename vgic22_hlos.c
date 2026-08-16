@@ -28,6 +28,8 @@
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/sched.h>
+#include <linux/cpumask.h>
 
 static unsigned long gicd_base = 0x16000000UL;
 module_param(gicd_base, ulong, 0644);
@@ -35,6 +37,8 @@ static unsigned int spi_first = 40;
 module_param(spi_first, uint, 0644);
 static unsigned int n = 8; /* oryon SW LR count */
 module_param(n, uint, 0644);
+static unsigned int target_cpu = 0;
+module_param(target_cpu, uint, 0644);
 
 #define GICD_CTLR	0x0000
 #define GICD_IIDR	0x0008
@@ -50,6 +54,13 @@ static int __init vgic22_init(void)
 	unsigned long mask = 0;
 	u32 iidr;
 	int i;
+	struct cpumask cm;
+
+	/* pin to the target CPU so ITS IRQs are the ones we mask and the
+	 * hyp injects the SPIs into the vCPU whose LRs stay occupied */
+	cpumask_clear(&cm);
+	cpumask_set_cpu(target_cpu, &cm);
+	set_cpus_allowed_ptr(current, &cm);
 
 	gicd = ioremap(gicd_base, 0x10000);
 	if (!gicd) {
