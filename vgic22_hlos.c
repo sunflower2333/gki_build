@@ -41,7 +41,9 @@ static unsigned int target_cpu = 0;
 module_param(target_cpu, uint, 0644);
 /* mode: 0=full (IROUTER+prio+CTLR+ICC+pends)  1=read-only baseline
  *       2=IROUTER writes only  3=CTLR+ICC+pends (no IROUTER/prio)
- *       4=pends only (ISENABLER/ISPENDR) */
+ *       4=pends only (ISENABLER/ISPENDR, no CTLR/ICC)
+ *       5=GICD_CTLR only  6=ICC_PMR only  7=ICC_IGRPEN1 only
+ *       8=ICC_IGRPEN0 only */
 static unsigned int mode = 0;
 module_param(mode, uint, 0644);
 
@@ -95,16 +97,32 @@ static int __init vgic22_init(void)
 			       gicd + GICD_IPRIORITYR + spi_first + i);
 	}
 
-	if (mode == 0 || mode == 3 || mode == 4) {
+	if (mode == 0 || mode == 3) {
 		writel(0x3, gicd + GICD_CTLR); /* Group0 | Group1 */
 		asm volatile("msr ICC_PMR_EL1, %0" : : "r"(0xFFULL));
 		asm volatile("msr ICC_IGRPEN1_EL1, %0" : : "r"(1ULL));
 		asm volatile("msr ICC_IGRPEN0_EL1, %0" : : "r"(1ULL));
 		isb();
 	}
+	/* single-op isolation modes */
+	if (mode == 5) { /* GICD_CTLR=3 only */
+		writel(0x3, gicd + GICD_CTLR);
+	}
+	if (mode == 6) { /* ICC_PMR only */
+		asm volatile("msr ICC_PMR_EL1, %0" : : "r"(0xFFULL));
+		isb();
+	}
+	if (mode == 7) { /* ICC_IGRPEN1 only */
+		asm volatile("msr ICC_IGRPEN1_EL1, %0" : : "r"(1ULL));
+		isb();
+	}
+	if (mode == 8) { /* ICC_IGRPEN0 only */
+		asm volatile("msr ICC_IGRPEN0_EL1, %0" : : "r"(1ULL));
+		isb();
+	}
 
-	if (mode == 2) {
-		pr_info("vgic22: mode2 IROUTER-only done\n");
+	if (mode == 2 || mode == 5 || mode == 6 || mode == 7 || mode == 8) {
+		pr_info("vgic22: mode%u single-op done\n", mode);
 		iounmap(gicd);
 		return 0;
 	}
