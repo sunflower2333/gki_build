@@ -43,7 +43,7 @@ module_param(target_cpu, uint, 0644);
  *       2=IROUTER writes only  3=CTLR+ICC+pends (no IROUTER/prio)
  *       4=pends only (ISENABLER/ISPENDR, no CTLR/ICC)
  *       5=GICD_CTLR only  6=ICC_PMR only  7=ICC_IGRPEN1 only
- *       8=ICC_IGRPEN0 only */
+ *       8=ICC_IGRPEN0 only  10=pend + stay IRQ-masked */
 static unsigned int mode = 0;
 module_param(mode, uint, 0644);
 
@@ -136,6 +136,15 @@ static int __init vgic22_init(void)
 	writel(mask, gicd + GICD_ISENABLER1);
 	writel(mask, gicd + GICD_ISPENDR1);
 	udelay(100);
+
+	if (mode == 10) {
+		/* pend + stay IRQ-masked forever: if the hyp dies at pend
+		 * time the device reboots; if it survives, delivery is the
+		 * trigger */
+		pr_info("vgic22: mode10 pended, staying IRQ-masked\n");
+		for (;;)
+			cpu_relax();
+	}
 
 	/* (n+1)th delivery -> ELRSR ctz=n -> vgic_lrs[n] OOB */
 	pr_info("vgic22: pend (n+1)th SPI %u -> trigger\n", spi_first + n);
